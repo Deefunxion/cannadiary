@@ -431,7 +431,7 @@
                     <button onclick="document.getElementById('importFileInput').click()" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" title="Import scores">
                         <i class="fas fa-file-import"></i>
                     </button>
-                    <input type="file" id="importFileInput" accept=".csv,.xlsx" class="hidden" onchange="handleImportFile(event)">
+                    <input type="file" id="importFileInput" accept=".csv,.xlsx,.xlsm" class="hidden" onchange="handleImportFile(event)">
                 </div>
             </div>
             
@@ -1842,6 +1842,19 @@
             }, 3000);
         }
 
+        // Helper to parse score values that may be percentages
+        function parseScore(val) {
+            if (typeof val === 'string') {
+                val = val.trim();
+                if (val.endsWith('%')) {
+                    val = val.slice(0, -1);
+                }
+            }
+            const num = parseFloat(val);
+            if (isNaN(num)) return NaN;
+            return num > 1 ? num / 100 : num;
+        }
+
         // Import plant scores from CSV or Excel file
         function handleImportFile(event) {
             const file = event.target.files[0];
@@ -1868,17 +1881,17 @@
                 for (const r of rows) {
                     if (r.length < 11) continue;
                     const plant = {
-                        number: parseInt(r[0]),
+                        number: parseInt(r[0]) || (newData.length + 1),
                         strain: r[1],
-                        leafStatus: parseFloat(r[2]),
-                        internodes: parseFloat(r[3]),
-                        spacing: parseFloat(r[4]),
-                        height: parseFloat(r[5]),
-                        width: parseFloat(r[6]),
-                        roots: parseFloat(r[7]),
-                        stemRigidity: parseFloat(r[8]),
-                        sideShoot: parseFloat(r[9]),
-                        symmetry: parseFloat(r[10])
+                        leafStatus: parseScore(r[2]),
+                        internodes: parseScore(r[3]),
+                        spacing: parseScore(r[4]),
+                        height: parseScore(r[5]),
+                        width: parseScore(r[6]),
+                        roots: parseScore(r[7]),
+                        stemRigidity: parseScore(r[8]),
+                        sideShoot: parseScore(r[9]),
+                        symmetry: parseScore(r[10])
                     };
 
                     // Validate trait values
