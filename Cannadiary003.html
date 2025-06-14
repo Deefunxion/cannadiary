@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --cannabis-green: #2d5016;
@@ -427,6 +428,10 @@
                         <option value="total">Sort by Total Score</option>
                         <option value="strain">Sort by Strain</option>
                     </select>
+                    <button onclick="document.getElementById('importFileInput').click()" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" title="Import scores">
+                        <i class="fas fa-file-import"></i>
+                    </button>
+                    <input type="file" id="importFileInput" accept=".csv,.xlsx" class="hidden" onchange="handleImportFile(event)">
                 </div>
             </div>
             
@@ -1835,6 +1840,74 @@
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
+        }
+
+        // Import plant scores from CSV or Excel file
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                if (rows.length === 0) {
+                    showErrorToast('File is empty');
+                    return;
+                }
+
+                // Remove header row if first cell is not a number
+                if (isNaN(parseInt(rows[0][0]))) {
+                    rows.shift();
+                }
+
+                const newData = [];
+                for (const r of rows) {
+                    if (r.length < 11) continue;
+                    const plant = {
+                        number: parseInt(r[0]),
+                        strain: r[1],
+                        leafStatus: parseFloat(r[2]),
+                        internodes: parseFloat(r[3]),
+                        spacing: parseFloat(r[4]),
+                        height: parseFloat(r[5]),
+                        width: parseFloat(r[6]),
+                        roots: parseFloat(r[7]),
+                        stemRigidity: parseFloat(r[8]),
+                        sideShoot: parseFloat(r[9]),
+                        symmetry: parseFloat(r[10])
+                    };
+
+                    // Validate trait values
+                    const traits = ['leafStatus','internodes','spacing','height','width','roots','stemRigidity','sideShoot','symmetry'];
+                    for (const t of traits) {
+                        const v = plant[t];
+                        if (isNaN(v) || v < 0 || v > 1) {
+                            showErrorToast('Invalid values in file');
+                            return;
+                        }
+                    }
+
+                    plant.total = (plant.leafStatus + plant.internodes + plant.spacing + plant.height + plant.width + plant.roots + plant.stemRigidity + plant.sideShoot + plant.symmetry) / 9;
+                    newData.push(plant);
+                }
+
+                if (newData.length === 0) {
+                    showErrorToast('No valid rows found');
+                    return;
+                }
+
+                plantsData = newData;
+                savePlantData();
+                initPlantTable();
+                updateKPIs();
+                updatePerformanceChart();
+                showToast('Import successful!');
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         // Utility functions
