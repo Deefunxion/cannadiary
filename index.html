@@ -340,6 +340,17 @@
             padding: 20px;
         }
 
+        .draggable-image{
+          position:absolute;
+          cursor:move;
+          border:4px solid #fff;
+          box-shadow:2px 2px 8px rgba(0,0,0,.15);
+          transform:rotate(-2deg);
+          border-radius:8px;
+        }
+        .draggable-image img{display:block;width:150px;height:150px;object-fit:cover;border-radius:4px}
+        .draggable-image:nth-child(even){transform:rotate(2deg)}
+
         .edit-lock-toggle {
             background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
             color: white;
@@ -505,9 +516,13 @@
                     <button onclick="addStickyNote()" class="bg-yellow-400 text-yellow-900 px-3 py-1 rounded hover:bg-yellow-500 transition-all">
                         <i class="fas fa-sticky-note mr-1"></i>Add Note
                     </button>
+                    <button onclick="openCanvasImageUpload()" class="bg-blue-400 text-blue-900 px-3 py-1 rounded hover:bg-blue-500 transition-all">
+                        <i class="fas fa-camera mr-1"></i>Add Photo
+                    </button>
                     <button onclick="clearCanvas()" class="bg-red-400 text-red-900 px-3 py-1 rounded hover:bg-red-500 transition-all">
                         <i class="fas fa-trash mr-1"></i>Clear
                     </button>
+                    <input type="file" id="canvasImageInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleCanvasImageUpload(event)">
                 </div>
             </div>
             <div class="canvas-area notebook-bg p-4 relative" id="journalCanvas">
@@ -898,6 +913,20 @@
 
             clearCanvasNotes: () => {
                 localStorage.removeItem('canvas_notes');
+            },
+
+            // Canvas images: [{id,x,y,src,timestamp}, ...]
+            getCanvasImages: () => JSON.parse(localStorage.getItem('canvas_images')||'[]'),
+            addCanvasImage: (img) => {
+                const imgs = CannadiaryData.getCanvasImages();
+                img.id = Date.now();
+                imgs.push(img);
+                localStorage.setItem('canvas_images', JSON.stringify(imgs));
+                return img;
+            },
+            removeCanvasImage: (id) => {
+                const imgs = CannadiaryData.getCanvasImages().filter(i => i.id !== id);
+                localStorage.setItem('canvas_images', JSON.stringify(imgs));
             }
         };
 
@@ -1527,6 +1556,7 @@
         function setupJournalCanvas() {
             const canvas = document.getElementById('journalCanvas');
             loadCanvasNotes();
+            loadCanvasImages();
             
             canvas.addEventListener('click', function(e) {
                 if (e.target === canvas) {
@@ -1596,15 +1626,62 @@
             });
         }
 
+        function openCanvasImageUpload(){
+            document.getElementById('canvasImageInput').click();
+        }
+
+        async function handleCanvasImageUpload(e){
+            const file=e.target.files[0];if(!file)return;
+            if(file.size>2*1024*1024||!file.type.startsWith('image/')){showErrorToast('Select an image ≤2 MB');return;}
+            const {data}=await compressImage(file);
+            const canvas=document.getElementById('journalCanvas');
+            const x=(canvas.offsetWidth-160)/2, y=(canvas.offsetHeight-160)/2;
+            createCanvasImage(x,y,data,true);
+            e.target.value='';
+        }
+
+        function createCanvasImage(x,y,src,save=false){
+            const canvas=document.getElementById('journalCanvas');
+            const wrap=document.createElement('div');
+            wrap.className='draggable-image';
+            wrap.style.left=x+'px';wrap.style.top=y+'px';
+            wrap.innerHTML=`<img src="${src}">
+                  <button onclick="deleteCanvasImage(this.parentElement.dataset.imgId)"
+                          class="absolute top-1 right-1 text-red-500 hover:text-red-700 text-lg leading-none">×</button>`;
+            makeDraggable(wrap);
+            canvas.appendChild(wrap);
+            hideCanvasPlaceholder();
+            if(save){
+                const saved=CannadiaryData.addCanvasImage({x:parseInt(x),y:parseInt(y),src,timestamp:new Date().toISOString()});
+                wrap.dataset.imgId=saved.id;
+            }
+        }
+
+        function loadCanvasImages(){
+            CannadiaryData.getCanvasImages().forEach(img=>{
+                createCanvasImage(img.x,img.y,img.src);
+                const latest=document.querySelectorAll('.draggable-image:last-child')[0];
+                latest.dataset.imgId=img.id;
+            });
+        }
+
+        function deleteCanvasImage(id){
+            if(!confirm('Delete this photo?'))return;
+            CannadiaryData.removeCanvasImage(id);
+            document.querySelector(`[data-img-id="${id}"]`).remove();
+            if(!document.querySelector('#journalCanvas .draggable-note, #journalCanvas .draggable-image')){
+                showCanvasPlaceholder();
+            }
+        }
+
         function deleteCanvasNote(id) {
             if (confirm('Delete this note?')) {
                 CannadiaryData.removeCanvasNote(id);
                 document.querySelector(`[data-note-id="${id}"]`).remove();
                 showToast('Note deleted!');
                 
-                // Show placeholder if no notes left
                 const canvas = document.getElementById('journalCanvas');
-                if (canvas.querySelectorAll('.draggable-note').length === 0) {
+                if (!canvas.querySelector('.draggable-note, .draggable-image')) {
                     showCanvasPlaceholder();
                 }
             }
@@ -1651,13 +1728,21 @@
 
             document.addEventListener('mouseup', function() {
                 if (isDragging && element.dataset.noteId) {
-                    // Update position in localStorage
                     const notes = CannadiaryData.getCanvasNotes();
                     const noteIndex = notes.findIndex(n => n.id == element.dataset.noteId);
                     if (noteIndex !== -1) {
                         notes[noteIndex].x = parseInt(element.style.left);
                         notes[noteIndex].y = parseInt(element.style.top);
                         localStorage.setItem('canvas_notes', JSON.stringify(notes));
+                    }
+                }
+                if (isDragging && element.dataset.imgId) {
+                    const imgs = CannadiaryData.getCanvasImages();
+                    const idx = imgs.findIndex(i => i.id == element.dataset.imgId);
+                    if (idx !== -1) {
+                        imgs[idx].x = parseInt(element.style.left);
+                        imgs[idx].y = parseInt(element.style.top);
+                        localStorage.setItem('canvas_images', JSON.stringify(imgs));
                     }
                 }
                 isDragging = false;
@@ -1669,9 +1754,10 @@
         function clearCanvas() {
             if (confirm('Are you sure you want to clear all notes? This cannot be undone.')) {
                 CannadiaryData.clearCanvasNotes();
+                localStorage.removeItem('canvas_images');
                 const canvas = document.getElementById('journalCanvas');
-                const notes = canvas.querySelectorAll('.draggable-note');
-                notes.forEach(note => note.remove());
+                const items = canvas.querySelectorAll('.draggable-note, .draggable-image');
+                items.forEach(el => el.remove());
                 showCanvasPlaceholder();
                 showToast('Canvas cleared!');
             }
