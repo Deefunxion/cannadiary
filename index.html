@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cannadiary With IMPORT XLSX</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --cannabis-green: #2d5016;
+            --cannabis-light-green: #4a7c59;
+            --cannabis-sage: #87a96b;
+            --cannabis-brown: #8b7355;
+            --canvas-bg: #f8f6f0;
+            --notebook-line: #e5ddd1;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: linear-gradient(135deg, var(--canvas-bg) 0%, #f0f4e8 100%);
+            min-height: 100vh;
+        }
+
+        .notebook-bg {
+            background: var(--canvas-bg);
+            background-image: 
+                linear-gradient(var(--notebook-line) 1px, transparent 1px),
+                linear-gradient(90deg, var(--notebook-line) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .timeline-container {
+            background: linear-gradient(90deg, var(--cannabis-light-green), var(--cannabis-sage));
+            box-shadow: 0 4px 12px rgba(45, 80, 22, 0.3);
+        }
+
+        .timeline-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: var(--cannabis-green) transparent;
+        }
+
+        .timeline-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .timeline-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .timeline-scroll::-webkit-scrollbar-thumb {
+            background: var(--cannabis-green);
+            border-radius: 4px;
+        }
+
+        .plant-card {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .plant-card:hover {
+            border-color: var(--cannabis-sage);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(45, 80, 22, 0.2);
+        }
+
+        .trait-score {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .trait-score:hover {
+            transform: scale(1.1);
+        }
+
+        .trait-score.editing {
+            border: 2px solid #3b82f6;
+            background: white !important;
+        }
+
+        .trait-score.locked {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .trait-score.save-pulse {
+            animation: pulse-green 0.6s ease-in-out;
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        .edit-input {
+            width: 60px;
+            text-align: center;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: inherit;
+            font-weight: inherit;
+        }
+
+        .sticky-note {
+            background: #ffeaa7;
+            border: 1px solid #fdcb6e;
+            box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);
+            transform: rotate(-1deg);
+            cursor: move;
+        }
+
+        .milestone-marker {
+            background: var(--cannabis-green);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .milestone-marker:hover {
+            transform: scale(1.2);
+            box-shadow: 0 4px 12px rgba(45, 80, 22, 0.4);
+        }
+
+        .canvas-area {
+            min-height: 600px;
+            position: relative;
+            border: 2px dashed var(--cannabis-sage);
+            border-radius: 8px;
+        }
+
+        .trait-heatmap {
+            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 50%, #48dbfb 100%);
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
+            border-left: 4px solid var(--cannabis-green);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .image-modal-content {
+            max-width: 90%;
+            max-height: 90%;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: black;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            top: -30px;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .draggable-note {
+            position: absolute;
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 10px;
+            min-width: 150px;
+            cursor: move;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+            transform: rotate(-1deg);
+        }
+
+        .success-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .success-toast.show {
+            opacity: 1;
+        }
+
+        .error-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .error-toast.show {
+            opacity: 1;
+        }
+
+        /* Image Upload Styles */
+        .image-upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .image-upload-area:hover {
+            border-color: var(--cannabis-sage);
+            background-color: #f9fafb;
+        }
+
+        .image-upload-area.dragover {
+            border-color: var(--cannabis-green);
+            background-color: #f0f9ff;
+        }
+
+        .plant-thumbnail {
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .plant-thumbnail:hover {
+            border-color: var(--cannabis-sage);
+            transform: scale(1.1);
+        }
+
+        .plant-image-placeholder {
+            width: 48px;
+            height: 48px;
+            background: #f3f4f6;
+            border: 2px dashed #d1d5db;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .plant-image-placeholder:hover {
+            border-color: var(--cannabis-sage);
+            background: #f9fafb;
+        }
+
+        /* Polaroid Style Gallery */
+        .polaroid-image {
+            background: white;
+            padding: 8px 8px 24px 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: rotate(-2deg);
+            transition: all 0.3s ease;
+            margin: 10px;
+            display: inline-block;
+        }
+
+        .polaroid-image:nth-child(even) {
+            transform: rotate(2deg);
+        }
+
+        .polaroid-image:hover {
+            transform: rotate(0deg) scale(1.1);
+            z-index: 100;
+        }
+
+        .polaroid-image img {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .polaroid-date {
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .image-gallery-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .draggable-image{
+          position:absolute;
+          cursor:move;
+          border:4px solid #fff;
+          box-shadow:2px 2px 8px rgba(0,0,0,.15);
+          transform:rotate(-2deg);
+          border-radius:8px;
+        }
+/* draggable-image thumbnails – keep aspect ratio, max 150 px */
+.draggable-image img{
+  display:block;
+  max-width:150px;
+  max-height:150px;
+  width:auto;
+  height:auto;
+  object-fit:contain;
+  border-radius:4px;
+}
+
+/* ελαφρύ εναλλάξ “πετάρισμα” για πολορόιντ αισθητική */
+.draggable-image:nth-child(even){
+  transform:rotate(2deg);
+}
+        .edit-lock-toggle {
+            background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .edit-lock-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+
+        .edit-lock-toggle.locked {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        }
+
+        .edit-lock-toggle.unlocked {
+            background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+        }
+
+        @media print {
+            body { background: white !important; }
+            .timeline-scroll { overflow: visible !important; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="bg-green-900 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex items-center justify-between">
+            <h1 class="text-3xl font-bold flex items-center">
+                <i class="fas fa-seedling mr-3"></i>
+                Cannadiary
+            </h1>
+            <div class="text-sm opacity-75">
+                Cannabis Grow Diary | May 10 - Dec 31, 2025
+            </div>
+        </div>
+    </header>
+
+    <!-- Timeline Section -->
+    <section class="timeline-container p-4">
+        <div class="container mx-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold text-white">Growth Timeline</h2>
+                <div class="flex space-x-2">
+                    <button onclick="zoomTimeline('in')" class="bg-white bg-opacity-20 text-white px-3 py-1 rounded hover:bg-opacity-30 transition-all">
+                        <i class="fas fa-search-plus"></i>
+                    </button>
+                    <button onclick="zoomTimeline('out')" class="bg-white bg-opacity-20 text-white px-3 py-1 rounded hover:bg-opacity-30 transition-all">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="timeline-scroll overflow-x-auto bg-white bg-opacity-10 rounded-lg p-4 relative" id="timelineContainer">
+                <div class="flex space-x-2 relative" id="timelineDays" style="min-width: 2000px;">
+                    <!-- Timeline days will be generated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Grid -->
+    <div class="container mx-auto p-4 space-y-6">
+        
+        <!-- Plant Trait Tracking Panel -->
+        <section class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-bold text-green-900 flex items-center">
+                    <i class="fas fa-cannabis mr-3"></i>
+                    Plant Trait Tracking (<span id="plantCount"></span> Plants)
+                </h2>
+                <div class="flex space-x-2 items-center">
+                    <button id="editLockToggle" onclick="toggleEditLock()" class="edit-lock-toggle unlocked">
+                        <i class="fas fa-unlock mr-2"></i>
+                        <span id="lockToggleText">Unlock Editing</span>
+                    </button>
+                    <input type="text" id="plantFilter" placeholder="Filter plants..." class="px-3 py-1 border border-gray-300 rounded">
+                    <select id="sortBy" class="px-3 py-1 border border-gray-300 rounded">
+                        <option value="id">Sort by Plant #</option>
+                        <option value="total">Sort by Total Score</option>
+                        <option value="label">Sort by Label</option>
+                    </select>
+                    <button onclick="document.getElementById('importFileInput').click()" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" title="Import scores">
+                        <i class="fas fa-file-import"></i>
+                    </button>
+                    <input type="file" id="importFileInput" accept=".csv,.xlsx,.xlsm" class="hidden" onchange="handleImportFile(event)">
+<button onclick="promptAddPlant()" class="bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600">+ Add Plant</button>
+                    <button onclick="openBulkUpload()" class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-all">
+                        <i class="fas fa-images mr-1"></i>Bulk Upload (≤35)
+                    </button>
+                    <input type="file" id="bulkInput" style="display:none" webkitdirectory multiple accept=".jpg,.jpeg" onchange="handleBulkUpload(event)">
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm" id="plantTable">
+                    <thead class="bg-green-100">
+                        <tr>
+                            <th class="p-2 text-left">#</th>
+                            <th class="p-2 text-left">ID</th>
+                            <th class="p-2 text-left">Label</th>
+                            <th class="p-2 text-center">Image</th>
+                            <th class="p-2 text-center">Leaf Status</th>
+                            <th class="p-2 text-center">Internodes #</th>
+                            <th class="p-2 text-center">Internodes Spacing</th>
+                            <th class="p-2 text-center">Height</th>
+                            <th class="p-2 text-center">Width</th>
+                            <th class="p-2 text-center">Root Spaghetti</th>
+                            <th class="p-2 text-center">Stem Rigidity</th>
+                            <th class="p-2 text-center">Side Shoot</th>
+                            <th class="p-2 text-center">Symmetry</th>
+                            <th class="p-2 text-center">Total Score</th>
+                            <th class="p-2 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plantTableBody">
+                        <!-- Plant data will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- KPI Dashboard -->
+        <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="kpi-card p-4 rounded-lg shadow">
+                <h3 class="font-bold text-green-900 mb-2">
+                    <i class="fas fa-chart-line mr-2"></i>Vigor Index
+                </h3>
+                <div class="text-2xl font-bold text-green-700" id="vigorIndex">8.2</div>
+                <div class="text-sm text-gray-600">Avg across top 10 plants</div>
+            </div>
+            <div class="kpi-card p-4 rounded-lg shadow">
+                <h3 class="font-bold text-green-900 mb-2">
+                    <i class="fas fa-shield-alt mr-2"></i>Structural Integrity
+                </h3>
+                <div class="text-2xl font-bold text-green-700" id="structuralIndex">7.8</div>
+                <div class="text-sm text-gray-600">Combined stem + symmetry</div>
+            </div>
+            <div class="kpi-card p-4 rounded-lg shadow">
+                <h3 class="font-bold text-green-900 mb-2">
+                    <i class="fas fa-leaf mr-2"></i>Top Performer
+                </h3>
+                <div class="text-lg font-bold text-green-700" id="topPerformer">OTI Rs #8</div>
+                <div class="text-sm text-gray-600">Score: 0.839</div>
+            </div>
+            <div class="kpi-card p-4 rounded-lg shadow">
+                <h3 class="font-bold text-green-900 mb-2">
+                    <i class="fas fa-calendar-check mr-2"></i>Days Active
+                </h3>
+                <div class="text-2xl font-bold text-green-700" id="daysActive">45</div>
+                <div class="text-sm text-gray-600">Since May 10, 2025</div>
+            </div>
+        </section>
+
+        <!-- Freeform Canvas Journal Area -->
+        <section class="bg-white rounded-lg shadow-lg p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-bold text-green-900 flex items-center">
+                    <i class="fas fa-edit mr-3"></i>
+                    Freeform Journal Canvas
+                </h2>
+                <div class="flex space-x-2">
+                    <button onclick="addStickyNote()" class="bg-yellow-400 text-yellow-900 px-3 py-1 rounded hover:bg-yellow-500 transition-all">
+                        <i class="fas fa-sticky-note mr-1"></i>Add Note
+                    </button>
+                    <button onclick="openCanvasImageUpload()" class="bg-blue-400 text-blue-900 px-3 py-1 rounded hover:bg-blue-500 transition-all">
+                        <i class="fas fa-camera mr-1"></i>Add Photo
+                    </button>
+                    <button onclick="clearCanvas()" class="bg-red-400 text-red-900 px-3 py-1 rounded hover:bg-red-500 transition-all">
+                        <i class="fas fa-trash mr-1"></i>Clear
+                    </button>
+                    <input type="file" id="canvasImageInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleCanvasImageUpload(event)">
+                </div>
+            </div>
+            <div class="canvas-area notebook-bg p-4 relative" id="journalCanvas">
+                <div class="text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none" id="canvasPlaceholder">
+                    <i class="fas fa-pen-fancy text-4xl mb-2"></i>
+                    <div>Click anywhere to add notes, observations, or paste images</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Milestone & Care Scheduler -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Milestones -->
+            <section class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-green-900 mb-4 flex items-center">
+                    <i class="fas fa-flag-checkered mr-3"></i>
+                    Growth Milestones
+                </h2>
+                <div class="space-y-3" id="milestoneList">
+                    <!-- Milestones will be populated by JavaScript -->
+                </div>
+                <button onclick="openMilestoneModal()" class="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-all">
+                    <i class="fas fa-plus mr-2"></i>Add Milestone
+                </button>
+            </section>
+
+            <!-- Care Scheduler -->
+            <section class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-green-900 mb-4 flex items-center">
+                    <i class="fas fa-calendar-alt mr-3"></i>
+                    Care Scheduler
+                </h2>
+                <div class="space-y-3" id="careList">
+                    <!-- Care events will be populated by JavaScript -->
+                </div>
+                <button onclick="openCareModal()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-all">
+                    <i class="fas fa-plus mr-2"></i>Add Care Event
+                </button>
+            </section>
+        </div>
+
+        <!-- Performance Chart -->
+        <section class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-green-900 mb-4 flex items-center">
+                <i class="fas fa-chart-bar mr-3"></i>
+                Plant Performance Overview
+            </h2>
+            <div style="height: 400px;">
+                <canvas id="performanceChart"></canvas>
+            </div>
+        </section>
+    </div>
+
+    <!-- Plant Log Modal -->
+    <div id="plantLogModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('plantLogModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4 text-green-900">Add Plant Log Entry</h2>
+            <form id="plantLogForm">
+                <input type="hidden" id="logPlantId" />
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Plant:</label>
+                    <input type="text" id="logPlantName" class="w-full p-2 border rounded bg-gray-100" readonly />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Date & Time:</label>
+                    <input type="datetime-local" id="logDateTime" class="w-full p-2 border rounded" required />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Observation/Notes:</label>
+                    <textarea id="logNotes" class="w-full p-2 border rounded h-32" placeholder="Enter your observations, measurements, or notes..." required></textarea>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Add Photo (Optional):</label>
+                    <div class="image-upload-area" onclick="document.getElementById('logImageInput').click()">
+                        <input type="file" id="logImageInput" accept="image/*" style="display: none;" onchange="handleLogImageUpload(event)">
+                        <i class="fas fa-camera text-2xl text-gray-400 mb-2"></i>
+                        <div class="text-gray-500">Click to add photo or drag & drop</div>
+                    </div>
+                    <div id="logImagePreview" class="mt-2 hidden">
+                        <img id="logPreviewImg" class="max-w-full h-32 object-cover rounded" />
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('plantLogModal')" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Save Log</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Image Gallery Modal -->
+    <div id="imageGalleryModal" class="modal">
+        <div class="modal-content image-modal-content">
+            <span class="close" onclick="closeModal('imageGalleryModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4 text-green-900">Plant Images - <span id="galleryPlantName"></span></h2>
+            <div class="image-gallery-grid" id="imageGalleryGrid">
+                <!-- Images will be loaded here -->
+            </div>
+            <div class="mt-4 text-center">
+                <button onclick="openImageUpload()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                    <i class="fas fa-plus mr-2"></i>Add New Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Upload Modal -->
+    <div id="imageUploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('imageUploadModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4 text-green-900">Upload Plant Image</h2>
+            <input type="hidden" id="uploadPlantId" />
+            <div class="mb-4">
+                <label class="block text-sm font-bold mb-2">Plant:</label>
+                <input type="text" id="uploadPlantName" class="w-full p-2 border rounded bg-gray-100" readonly />
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-bold mb-2">Select Image:</label>
+                <div class="image-upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+                    <input type="file" id="imageInput" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="handleImageUpload(event)">
+                    <i class="fas fa-camera text-4xl text-gray-400 mb-4"></i>
+                    <div class="text-lg text-gray-600 mb-2">Click to select image or drag & drop</div>
+                    <div class="text-sm text-gray-500">Supports: JPG, PNG, WebP (Max 2MB)</div>
+                </div>
+                <div id="imagePreview" class="mt-4 hidden text-center">
+                    <img id="previewImg" class="max-w-full h-64 object-cover rounded mx-auto" />
+                    <div id="imageName" class="mt-2 text-sm text-gray-600"></div>
+                    <div id="imageSize" class="text-xs text-gray-500"></div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('imageUploadModal')" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                <button id="saveImageBtn" onclick="saveImage()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50" disabled>Save Image</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milestone Modal -->
+    <div id="milestoneModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('milestoneModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4 text-green-900">Add Growth Milestone</h2>
+            <form id="milestoneForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Milestone Type:</label>
+                    <select id="milestoneType" class="w-full p-2 border rounded" required>
+                        <option value="">Select milestone type...</option>
+                        <option value="Transplanting">Transplanting</option>
+                        <option value="Topping">Topping</option>
+                        <option value="Fimming/LST">Fimming/LST</option>
+                        <option value="Flower Initiation">Flower Initiation</option>
+                        <option value="Stretch Period">Stretch Period</option>
+                        <option value="Harvest Window">Harvest Window</option>
+                        <option value="Drying">Drying</option>
+                        <option value="Curing">Curing</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+                <div class="mb-4" id="customMilestoneDiv" style="display: none;">
+                    <label class="block text-sm font-bold mb-2">Custom Milestone Name:</label>
+                    <input type="text" id="customMilestoneName" class="w-full p-2 border rounded" />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Target Date:</label>
+                    <input type="date" id="milestoneDate" class="w-full p-2 border rounded" required />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Notes (Optional):</label>
+                    <textarea id="milestoneNotes" class="w-full p-2 border rounded h-24" placeholder="Additional notes or reminders..."></textarea>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('milestoneModal')" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Add Milestone</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Care Event Modal -->
+    <div id="careModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('careModal')">&times;</span>
+            <h2 class="text-xl font-bold mb-4 text-blue-900">Add Care Event</h2>
+            <form id="careForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Care Type:</label>
+                    <select id="careType" class="w-full p-2 border rounded" required>
+                        <option value="">Select care type...</option>
+                        <option value="Watering">Watering</option>
+                        <option value="Feeding">Feeding/Nutrients</option>
+                        <option value="Training">Training (LST/HST)</option>
+                        <option value="Pest Control">Pest Control</option>
+                        <option value="Pruning">Pruning/Defoliation</option>
+                        <option value="Repotting">Repotting</option>
+                        <option value="Environmental">Environmental Check</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Plant(s) Affected:</label>
+                    <input type="text" id="carePlants" class="w-full p-2 border rounded" placeholder="e.g., All, Plant #5, Plants 1-10, MFM strains" required />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Date & Time:</label>
+                    <input type="datetime-local" id="careDateTime" class="w-full p-2 border rounded" required />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Amount/Dose (if applicable):</label>
+                    <input type="text" id="careAmount" class="w-full p-2 border rounded" placeholder="e.g., 500ml, 2ml per liter, pH 6.2" />
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Notes:</label>
+                    <textarea id="careNotes" class="w-full p-2 border rounded h-24" placeholder="Detailed notes about the care activity..." required></textarea>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('careModal')" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="successToast" class="success-toast">
+        <i class="fas fa-check-circle mr-2"></i>
+        <span id="toastMessage">Action completed successfully!</span>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="errorToast" class="error-toast">
+        <i class="fas fa-exclamation-circle mr-2"></i>
+        <span id="errorMessage">An error occurred!</span>
+    </div>
+
+    <script>
+        // Plant data from Excel file - will be modified for editing
+        const defaultPlants = [
+            {id: 1, label: "Super Silver Haze xa", leafStatus: 0.8, internodes: 0.9, spacing: 0.7, height: 0.8, width: 0.7, roots: 0.85, stemRigidity: 0.5, sideShoot: 0.6, symmetry: 0.65, total: 0.722222},
+            {id: 2, label: "MirMix or Sher", leafStatus: 0.7, internodes: 0.9, spacing: 0.9, height: 0.9, width: 0.8, roots: 0.6, stemRigidity: 0.7, sideShoot: 0.9, symmetry: 0.85, total: 0.805556},
+            {id: 3, label: "Mirko Nice #2", leafStatus: 0.8, internodes: 0.8, spacing: 0.9, height: 0.75, width: 0.8, roots: 0.6, stemRigidity: 0.7, sideShoot: 0.75, symmetry: 0.85, total: 0.772222},
+            {id: 4, label: "Kosher xa", leafStatus: 0.75, internodes: 0.85, spacing: 0.85, height: 0.65, width: 0.75, roots: 0.9, stemRigidity: 0.5, sideShoot: 0.65, symmetry: 0.8, total: 0.744444},
+            {id: 5, label: "Kosher*", leafStatus: 0.75, internodes: 0.95, spacing: 0.9, height: 0.8, width: 0.75, roots: 0.7, stemRigidity: 0.6, sideShoot: 0.9, symmetry: 0.85, total: 0.8},
+            {id: 6, label: "OTI xb", leafStatus: 0.8, internodes: 0.85, spacing: 0.9, height: 0.8, width: 0.85, roots: 0.8, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.95, total: 0.822222},
+            {id: 7, label: "OTI Rs", leafStatus: 0.9, internodes: 0.8, spacing: 0.8, height: 0.85, width: 0.85, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.75, symmetry: 0.9, total: 0.811111},
+            {id: 8, label: "OTI Rs", leafStatus: 0.85, internodes: 0.85, spacing: 0.85, height: 0.8, width: 0.9, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.95, total: 0.838889},
+            {id: 9, label: "Money Maker *", leafStatus: 0.7, internodes: 0.9, spacing: 0.85, height: 0.7, width: 0.65, roots: 0.75, stemRigidity: 0.7, sideShoot: 0.7, symmetry: 0.85, total: 0.755556},
+            {id: 10, label: "Money Maker Xb Rs", leafStatus: 0.8, internodes: 0.8, spacing: 0.75, height: 0.8, width: 0.8, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.75, symmetry: 0.75, total: 0.766667},
+            {id: 11, label: "OTI *", leafStatus: 0.8, internodes: 0.8, spacing: 0.9, height: 0.7, width: 0.7, roots: 0.9, stemRigidity: 0.5, sideShoot: 0.7, symmetry: 0.85, total: 0.761111},
+            {id: 12, label: "OTI", leafStatus: 0.75, internodes: 0.75, spacing: 0.85, height: 0.75, width: 0.8, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.85, symmetry: 0.9, total: 0.761111},
+            {id: 13, label: "OTI", leafStatus: 0.8, internodes: 0.95, spacing: 0.95, height: 0.7, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.9, total: 0.805556},
+            {id: 14, label: "MFM", leafStatus: 0.85, internodes: 0.95, spacing: 0.9, height: 0.75, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.9, total: 0.816667},
+            {id: 15, label: "MFM", leafStatus: 0.7, internodes: 0.75, spacing: 0.8, height: 0.65, width: 0.75, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.85, symmetry: 0.85, total: 0.727778},
+            {id: 16, label: "MFM", leafStatus: 0.8, internodes: 0.95, spacing: 0.95, height: 0.7, width: 0.8, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.95, total: 0.811111},
+            {id: 17, label: "AutoRs", leafStatus: 0.85, internodes: 0.95, spacing: 0.95, height: 0.6, width: 0.8, roots: 0.9, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.95, total: 0.827778},
+            {id: 18, label: "MFM", leafStatus: 0.85, internodes: 0.85, spacing: 0.8, height: 0.8, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.75, symmetry: 0.9, total: 0.777778},
+            {id: 19, label: "MFM", leafStatus: 0.9, internodes: 0.95, spacing: 0.9, height: 0.7, width: 0.9, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.85, symmetry: 0.9, total: 0.811111},
+            {id: 20, label: "Auto", leafStatus: 0.8, internodes: 0.9, spacing: 0.9, height: 0.7, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.9, total: 0.8},
+            {id: 21, label: "MFM xa", leafStatus: 0.85, internodes: 0.95, spacing: 0.9, height: 0.7, width: 0.8, roots: 0.9, stemRigidity: 0.5, sideShoot: 0.7, symmetry: 0.9, total: 0.8},
+            {id: 22, label: "MFM xa", leafStatus: 0.78, internodes: 0.9, spacing: 0.9, height: 0.7, width: 0.75, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.75, symmetry: 0.95, total: 0.797778},
+            {id: 23, label: "Auto", leafStatus: 0.8, internodes: 0.85, spacing: 0.85, height: 0.85, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.95, total: 0.805556},
+            {id: 24, label: "MFM xb Rs", leafStatus: 0.85, internodes: 0.85, spacing: 0.8, height: 0.85, width: 0.85, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.8, symmetry: 0.85, total: 0.811111},
+            {id: 25, label: "MFM xa", leafStatus: 0.75, internodes: 0.95, spacing: 0.8, height: 0.65, width: 0.7, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.7, symmetry: 0.9, total: 0.738889},
+            {id: 26, label: "MFM xa", leafStatus: 0.8, internodes: 0.75, spacing: 0.85, height: 0.75, width: 0.85, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.95, total: 0.811111},
+            {id: 27, label: "Auto", leafStatus: 0.8, internodes: 0.9, spacing: 0.9, height: 0.9, width: 0.85, roots: 0.7, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.85, total: 0.811111},
+            {id: 28, label: "MFM*", leafStatus: 0.75, internodes: 0.95, spacing: 0.95, height: 0.85, width: 0.75, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.85, symmetry: 0.85, total: 0.822222},
+            {id: 29, label: "MFM xb", leafStatus: 0.85, internodes: 0.75, spacing: 0.8, height: 0.85, width: 0.8, roots: 0.75, stemRigidity: 0.5, sideShoot: 0.75, symmetry: 0.9, total: 0.772222},
+            {id: 30, label: "MFM xb", leafStatus: 0.75, internodes: 0.85, spacing: 0.85, height: 0.8, width: 0.8, roots: 0.75, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.9, total: 0.788889},
+            {id: 31, label: "MFM xa", leafStatus: 0.9, internodes: 0.85, spacing: 0.85, height: 0.75, width: 0.85, roots: 0.5, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.95, total: 0.783333},
+            {id: 32, label: "MFM*", leafStatus: 0.75, internodes: 0.95, spacing: 0.95, height: 0.85, width: 0.8, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.85, total: 0.838889},
+            {id: 33, label: "MFM *", leafStatus: 0.7, internodes: 0.9, spacing: 0.75, height: 0.9, width: 0.8, roots: 0.75, stemRigidity: 0.5, sideShoot: 0.7, symmetry: 0.85, total: 0.761111},
+            {id: 34, label: "MFM xa", leafStatus: 0.85, internodes: 0.85, spacing: 0.85, height: 0.8, width: 0.8, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.95, symmetry: 0.95, total: 0.833333},
+        {id: 35, label: "MFM xb Rs", leafStatus: 0.8, internodes: 0.75, spacing: 0.8, height: 0.75, width: 0.8, roots: 0.95, stemRigidity: 0.5, sideShoot: 0.9, symmetry: 0.85, total: 0.788889}
+        ];
+
+        let plantsData = [];
+
+        let currentZoom = 1;
+        let timelineStart = new Date('2025-05-10');
+        let timelineEnd = new Date('2025-12-31');
+        let isEditingLocked = false;
+        let performanceChart = null;
+        let currentImageData = null;
+        let currentUploadPlantId = null;
+
+        // Load saved plant data and edit lock state
+        function loadSavedData() {
+            const savedPlants = localStorage.getItem('plants');
+            if (savedPlants) {
+                plantsData = JSON.parse(savedPlants);
+            } else {
+                plantsData = defaultPlants;
+                localStorage.setItem('plants', JSON.stringify(plantsData));
+                const maxId = Math.max(...plantsData.map(p => p.id));
+                localStorage.setItem('nextPlantId', String(maxId + 1));
+            }
+            
+            const savedLockState = localStorage.getItem('trait_editing_locked');
+            if (savedLockState) {
+                isEditingLocked = JSON.parse(savedLockState);
+                updateEditLockUI();
+            }
+        }
+
+        // Save plant data to localStorage
+        function savePlantData() {
+            localStorage.setItem('plants', JSON.stringify(plantsData));
+        }
+
+        function promptAddPlant() {
+            const label = prompt('New plant label?');
+            if (label === null) return;
+            CannadiaryData.addPlant(label.trim());
+            plantsData = CannadiaryData.getPlants();
+            savePlantData();
+            initPlantTable();
+        }
+
+        function deletePlant(id) {
+            if (!confirm(`Delete Plant #${id}?`)) return;
+            CannadiaryData.removePlant(id);
+            plantsData = CannadiaryData.getPlants();
+            savePlantData();
+            initPlantTable();
+        }
+
+        // LocalStorage data management
+        const CannadiaryData = {
+            getPlants: () => JSON.parse(localStorage.getItem('plants') || '[]'),
+            savePlants: arr => localStorage.setItem('plants', JSON.stringify(arr)),
+            nextId: () => +localStorage.getItem('nextPlantId') || 1,
+            bumpId: n => localStorage.setItem('nextPlantId', n),
+            addPlant: lbl => {
+                const id = CannadiaryData.nextId();
+                const plants = CannadiaryData.getPlants();
+                plants.push({id, label: lbl || `Plant ${id}`, leafStatus:0, internodes:0, spacing:0, height:0, width:0, roots:0, stemRigidity:0, sideShoot:0, symmetry:0, total:0});
+                CannadiaryData.savePlants(plants);
+                CannadiaryData.bumpId(id + 1);
+            },
+            removePlant: id => {
+                CannadiaryData.savePlants(CannadiaryData.getPlants().filter(p => p.id !== id));
+                localStorage.removeItem(`images_${id}`);
+                localStorage.removeItem(`traits_${id}`);
+            },
+
+            // Plant logs: { plantId: [ {timestamp, notes}, ... ] }
+            getPlantLogs: (plantId) => {
+                return JSON.parse(localStorage.getItem(`plant_logs_${plantId}`) || '[]');
+            },
+            
+            addPlantLog: (plantId, log) => {
+                const logs = CannadiaryData.getPlantLogs(plantId);
+                logs.unshift(log); // Add to beginning
+                localStorage.setItem(`plant_logs_${plantId}`, JSON.stringify(logs));
+            },
+
+            // Plant images: { plantId: [ {id, data, filename, uploadDate, size}, ... ] }
+            getPlantImages: (plantId) => {
+                return JSON.parse(localStorage.getItem(`plant_images_${plantId}`) || '[]');
+            },
+            
+            addPlantImage: (plantId, image) => {
+                const images = CannadiaryData.getPlantImages(plantId);
+                image.id = Date.now();
+                image.uploadDate = new Date().toISOString();
+                images.unshift(image); // Add to beginning
+                localStorage.setItem(`plant_images_${plantId}`, JSON.stringify(images));
+                return image;
+            },
+
+            removePlantImage: (plantId, imageId) => {
+                const images = CannadiaryData.getPlantImages(plantId).filter(img => img.id !== imageId);
+                localStorage.setItem(`plant_images_${plantId}`, JSON.stringify(images));
+            },
+
+            // Milestones: [ {id, name, date, notes, icon}, ... ]
+            getMilestones: () => {
+                return JSON.parse(localStorage.getItem('milestones') || '[]');
+            },
+            
+            addMilestone: (milestone) => {
+                const milestones = CannadiaryData.getMilestones();
+                milestone.id = Date.now();
+                milestones.push(milestone);
+                localStorage.setItem('milestones', JSON.stringify(milestones));
+                return milestone;
+            },
+
+            removeMilestone: (id) => {
+                const milestones = CannadiaryData.getMilestones().filter(m => m.id !== id);
+                localStorage.setItem('milestones', JSON.stringify(milestones));
+            },
+
+            // Care events: [ {id, type, plants, date, amount, notes}, ... ]
+            getCareEvents: () => {
+                return JSON.parse(localStorage.getItem('care_events') || '[]');
+            },
+            
+            addCareEvent: (event) => {
+                const events = CannadiaryData.getCareEvents();
+                event.id = Date.now();
+                events.push(event);
+                localStorage.setItem('care_events', JSON.stringify(events));
+                return event;
+            },
+
+            removeCareEvent: (id) => {
+                const events = CannadiaryData.getCareEvents().filter(e => e.id !== id);
+                localStorage.setItem('care_events', JSON.stringify(events));
+            },
+
+            // Canvas notes: [ {id, x, y, text, timestamp}, ... ]
+            getCanvasNotes: () => {
+                return JSON.parse(localStorage.getItem('canvas_notes') || '[]');
+            },
+            
+            addCanvasNote: (note) => {
+                const notes = CannadiaryData.getCanvasNotes();
+                note.id = Date.now();
+                notes.push(note);
+                localStorage.setItem('canvas_notes', JSON.stringify(notes));
+                return note;
+            },
+
+            removeCanvasNote: (id) => {
+                const notes = CannadiaryData.getCanvasNotes().filter(n => n.id !== id);
+                localStorage.setItem('canvas_notes', JSON.stringify(notes));
+            },
+
+            clearCanvasNotes: () => {
+                localStorage.removeItem('canvas_notes');
+            },
+
+            // Canvas images: [{id,x,y,src,timestamp}, ...]
+            getCanvasImages: () => JSON.parse(localStorage.getItem('canvas_images')||'[]'),
+            addCanvasImage: (img) => {
+                const imgs = CannadiaryData.getCanvasImages();
+                img.id = Date.now();
+                imgs.push(img);
+                localStorage.setItem('canvas_images', JSON.stringify(imgs));
+                return img;
+            },
+            removeCanvasImage: (id) => {
+                const imgs = CannadiaryData.getCanvasImages().filter(i => i.id !== id);
+                localStorage.setItem('canvas_images', JSON.stringify(imgs));
+            }
+        };
+
+        // Image compression function
+        function compressImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+                    canvas.width = img.width * ratio;
+                    canvas.height = img.height * ratio;
+                    
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve({
+                            data: reader.result,
+                            size: blob.size
+                        });
+                        reader.readAsDataURL(blob);
+                    }, 'image/jpeg', quality);
+                };
+                
+                img.src = URL.createObjectURL(file);
+            });
+            document.getElementById('plantCount').textContent = plantsData.length;
+        }
+
+        // Edit lock functionality
+        function toggleEditLock() {
+            isEditingLocked = !isEditingLocked;
+            localStorage.setItem('trait_editing_locked', JSON.stringify(isEditingLocked));
+            updateEditLockUI();
+            updateTraitCellStates();
+        }
+
+        function updateEditLockUI() {
+            const button = document.getElementById('editLockToggle');
+            const text = document.getElementById('lockToggleText');
+            const icon = button.querySelector('i');
+            
+            if (isEditingLocked) {
+                button.className = 'edit-lock-toggle locked';
+                icon.className = 'fas fa-lock mr-2';
+                text.textContent = 'Locked';
+            } else {
+                button.className = 'edit-lock-toggle unlocked';
+                icon.className = 'fas fa-unlock mr-2';
+                text.textContent = 'Unlocked';
+            }
+        }
+
+        function updateTraitCellStates() {
+            const traitCells = document.querySelectorAll('.trait-score[data-editable="true"]');
+            traitCells.forEach(cell => {
+                if (isEditingLocked) {
+                    cell.classList.add('locked');
+                } else {
+                    cell.classList.remove('locked');
+                }
+            });
+        }
+
+        // Trait editing functionality
+        function makeTraitCellEditable(cell, plantId, traitKey) {
+            if (isEditingLocked) return;
+            
+            const currentValue = cell.textContent;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.min = '0';
+            input.max = '1';
+            input.value = currentValue;
+            input.className = 'edit-input';
+            
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            cell.classList.add('editing');
+            input.focus();
+            input.select();
+            
+            const saveEdit = () => {
+                const newValue = parseFloat(input.value);
+                
+                if (isNaN(newValue) || newValue < 0 || newValue > 1) {
+                    showErrorToast('Invalid value! Please enter a number between 0 and 1.');
+                    input.focus();
+                    return;
+                }
+                
+                // Update plant data
+                const plant = plantsData.find(p => p.id === plantId);
+                if (plant) {
+                    plant[traitKey] = newValue;
+                    
+                    // Recalculate total score
+                    plant.total = (plant.leafStatus + plant.internodes + plant.spacing + plant.height + 
+                                 plant.width + plant.roots + plant.stemRigidity + plant.sideShoot + plant.symmetry) / 9;
+                    
+                    // Save to localStorage
+                    savePlantData();
+                    
+                    // Update UI
+                    cell.innerHTML = `<div class="trait-score inline-block px-2 py-1 rounded text-xs" style="background-color: ${getScoreColor(newValue)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plantId}, '${traitKey}')">${newValue}</div>`;
+                    cell.classList.remove('editing');
+                    cell.classList.add('save-pulse');
+                    
+                    // Update other affected cells in the same row
+                    updatePlantRow(plantId);
+                    
+                    // Update KPIs and chart
+                    updateKPIs();
+                    updatePerformanceChart();
+                    
+                    setTimeout(() => {
+                        cell.classList.remove('save-pulse');
+                    }, 600);
+                    
+                    showToast('Trait updated successfully!');
+                }
+            };
+            
+            const cancelEdit = () => {
+                cell.innerHTML = `<div class="trait-score inline-block px-2 py-1 rounded text-xs" style="background-color: ${getScoreColor(parseFloat(currentValue))}" data-editable="true" onclick="makeTraitCellEditable(this, ${plantId}, '${traitKey}')">${currentValue}</div>`;
+                cell.classList.remove('editing');
+            };
+            
+            input.addEventListener('blur', saveEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    cancelEdit();
+                }
+            });
+        }
+
+        function updatePlantRow(plantId) {
+            const plant = plantsData.find(p => p.id === plantId);
+            if (!plant) return;
+            
+            const row = document.querySelector(`tr[data-plant-id="${plantId}"]`);
+            if (!row) return;
+            
+            // Update total score cell
+            const totalCell = row.querySelector('.total-score');
+            if (totalCell) {
+                totalCell.innerHTML = `<div class="trait-score inline-block px-2 py-1 rounded text-xs" style="background-color: ${getScoreColor(plant.total)}">${plant.total.toFixed(3)}</div>`;
+            }
+        }
+
+        // Image upload functionality
+        function openImageUpload() {
+            if (currentUploadPlantId) {
+                document.getElementById('uploadPlantId').value = currentUploadPlantId;
+                const plant = plantsData.find(p => p.id === parseInt(currentUploadPlantId));
+                document.getElementById('uploadPlantName').value = `Plant #${plant.id} - ${plant.label}`;
+                closeModal('imageGalleryModal');
+                openModal('imageUploadModal');
+            }
+        }
+
+        function openPlantImageUpload(plantId, label) {
+            currentUploadPlantId = plantId;
+            document.getElementById('uploadPlantId').value = plantId;
+            document.getElementById('uploadPlantName').value = `Plant #${plantId} - ${label}`;
+            
+            // Reset upload area
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('saveImageBtn').disabled = true;
+            currentImageData = null;
+            
+            openModal('imageUploadModal');
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Validate file type
+            if (!file.type.startsWith('image/') || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                showErrorToast('Please select a valid image file (JPG, PNG, or WebP).');
+                return;
+            }
+            
+            // Validate file size (2MB limit)
+            if (file.size > 2 * 1024 * 1024) {
+                showErrorToast('Image size must be less than 2MB. Please choose a smaller image.');
+                return;
+            }
+            
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('imageName').textContent = file.name;
+                document.getElementById('imageSize').textContent = `Size: ${(file.size / 1024).toFixed(1)} KB`;
+                document.getElementById('imagePreview').classList.remove('hidden');
+                
+                // Compress image
+                try {
+                    const compressed = await compressImage(file);
+                    currentImageData = {
+                        data: compressed.data,
+                        filename: file.name,
+                        size: compressed.size
+                    };
+                    document.getElementById('saveImageBtn').disabled = false;
+                    document.getElementById('imageSize').textContent += ` → ${(compressed.size / 1024).toFixed(1)} KB (compressed)`;
+                } catch (error) {
+                    showErrorToast('Error processing image. Please try again.');
+                    console.error('Image compression error:', error);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleLogImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.startsWith('image/')) {
+                showErrorToast('Please select a valid image file.');
+                return;
+            }
+            
+            if (file.size > 2 * 1024 * 1024) {
+                showErrorToast('Image size must be less than 2MB.');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('logPreviewImg').src = e.target.result;
+                document.getElementById('logImagePreview').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveImage() {
+            if (!currentImageData || !currentUploadPlantId) return;
+            
+            const plantId = parseInt(currentUploadPlantId);
+            const savedImage = CannadiaryData.addPlantImage(plantId, currentImageData);
+            
+            closeModal('imageUploadModal');
+            showToast('Image saved successfully!');
+            
+            // Refresh plant table to show new thumbnail
+            initPlantTable();
+            
+            // Reset form
+            currentImageData = null;
+            currentUploadPlantId = null;
+        }
+
+        function openImageGallery(plantId, label) {
+            currentUploadPlantId = plantId;
+            document.getElementById('galleryPlantName').textContent = `Plant #${plantId} - ${label}`;
+            
+            const images = CannadiaryData.getPlantImages(plantId);
+            const grid = document.getElementById('imageGalleryGrid');
+            grid.innerHTML = '';
+            
+            if (images.length === 0) {
+                grid.innerHTML = '<div class="text-center text-gray-500 py-8">No images uploaded yet.<br>Click "Add New Image" to get started!</div>';
+            } else {
+                images.forEach(image => {
+                    const polaroid = document.createElement('div');
+                    polaroid.className = 'polaroid-image cursor-pointer';
+                    polaroid.innerHTML = `
+                        <img src="${image.data}" alt="${image.filename}" onclick="viewFullImage('${image.data}', '${image.filename}')">
+                        <div class="polaroid-date">${new Date(image.uploadDate).toLocaleDateString()}</div>
+                        <button onclick="deleteImage(${plantId}, ${image.id})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600" title="Delete image">×</button>
+                    `;
+                    polaroid.style.position = 'relative';
+                    grid.appendChild(polaroid);
+                });
+            }
+            
+            openModal('imageGalleryModal');
+        }
+
+        function viewFullImage(imageSrc, filename) {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.display = 'block';
+            modal.innerHTML = `
+                <div class="modal-content image-modal-content text-center">
+                    <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                    <h3 class="text-lg font-bold mb-4">${filename}</h3>
+                    <img src="${imageSrc}" class="max-w-full max-h-96 object-contain rounded shadow-lg">
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            });
+        }
+
+        function deleteImage(plantId, imageId) {
+            if (confirm('Delete this image? This cannot be undone.')) {
+                CannadiaryData.removePlantImage(plantId, imageId);
+                showToast('Image deleted successfully!');
+                // Refresh gallery
+                openImageGallery(plantId, plantsData.find(p => p.id === plantId).label);
+                // Refresh plant table
+                initPlantTable();
+            }
+        }
+
+        function openBulkUpload(){
+            document.getElementById('bulkInput').click();
+        }
+
+        async function handleBulkUpload(e){
+            let files = Array.from(e.target.files).filter(f=>/\.jpe?g$/i.test(f.name));
+            if(files.length===0) return;
+            if(files.length>35){
+                showErrorToast('Only the first 35 files will be imported');
+                files = files.slice(0,35);
+            }
+            let imported=0;
+            for(const file of files){
+                const m=file.name.match(/^(\d+)([a-z])\.jpe?g$/i);
+                if(!m) continue;
+                const id=parseInt(m[1],10);
+            if(!plantsData.some(p => p.id === id)){ 
+                showErrorToast(`Plant #${id} not found`); 
+            continue; 
+            }
+                const {data}=await compressImage(file,800,600,0.8);
+                CannadiaryData.addPlantImage(id,{data,filename:file.name,shootCode:m[2]});
+                imported++;
+            }
+            showToast(`Imported ${imported}/${files.length} photos`);
+            initPlantTable();
+            e.target.value='';
+        }
+
+        // Drag and drop functionality for image upload
+        function setupDragAndDrop() {
+            const uploadArea = document.getElementById('uploadArea');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    document.getElementById('imageInput').files = files;
+                    handleImageUpload({ target: { files: [file] } });
+                }
+            });
+        }
+
+        // Initialize timeline
+        function initTimeline() {
+            const container = document.getElementById('timelineDays');
+            const totalDays = Math.ceil((timelineEnd - timelineStart) / (1000 * 60 * 60 * 24));
+            
+            container.innerHTML = '';
+            
+            for (let i = 0; i <= totalDays; i++) {
+                const date = new Date(timelineStart);
+                date.setDate(date.getDate() + i);
+                
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'flex-shrink-0 text-center relative';
+                dayDiv.style.width = (30 * currentZoom) + 'px';
+                
+                const isWeekStart = date.getDay() === 0;
+                const isMonthStart = date.getDate() === 1;
+                
+                dayDiv.innerHTML = `
+                    <div class="text-xs text-white mb-1">
+                        ${isMonthStart ? date.toLocaleDateString('en-US', {month: 'short'}) : ''}
+                    </div>
+                    <div class="h-12 ${isWeekStart ? 'bg-white bg-opacity-30' : 'bg-white bg-opacity-10'} rounded mb-1 flex items-center justify-center text-xs text-white cursor-pointer hover:bg-opacity-40 transition-all" onclick="selectDate('${date.toISOString()}')">
+                        ${date.getDate()}
+                    </div>
+                    <div class="text-xs text-white opacity-75">
+                        ${date.toLocaleDateString('en-US', {weekday: 'short'})}
+                    </div>
+                `;
+                
+                container.appendChild(dayDiv);
+            }
+
+            // Add milestone markers to timeline
+            addTimelineMarkers();
+        }
+
+        // Add milestone and care event markers to timeline
+        function addTimelineMarkers() {
+            const milestones = CannadiaryData.getMilestones();
+            const careEvents = CannadiaryData.getCareEvents();
+            
+            [...milestones, ...careEvents].forEach(item => {
+                const itemDate = new Date(item.date);
+                if (itemDate >= timelineStart && itemDate <= timelineEnd) {
+                    const daysDiff = Math.ceil((itemDate - timelineStart) / (1000 * 60 * 60 * 24));
+                    const timelineContainer = document.getElementById('timelineDays');
+                    const dayElement = timelineContainer.children[daysDiff];
+                    
+                    if (dayElement) {
+                        const marker = document.createElement('div');
+                        marker.className = 'timeline-marker milestone-marker';
+                        marker.innerHTML = item.type ? 'C' : 'M'; // C for Care, M for Milestone
+                        marker.title = `${item.name || item.type} - ${item.date}`;
+                        marker.style.backgroundColor = item.type ? '#3b82f6' : '#16a34a';
+                        dayElement.appendChild(marker);
+                    }
+                }
+            });
+        }
+
+        // Timeline zoom functions
+        function zoomTimeline(direction) {
+            if (direction === 'in' && currentZoom < 2) {
+                currentZoom += 0.2;
+            } else if (direction === 'out' && currentZoom > 0.5) {
+                currentZoom -= 0.2;
+            }
+            initTimeline();
+        }
+
+        // Initialize plant table
+        function initPlantTable() {
+            const tbody = document.getElementById('plantTableBody');
+            tbody.innerHTML = '';
+
+            plantsData.forEach((plant, idx) => {
+                const logs = CannadiaryData.getPlantLogs(plant.id);
+                const logCount = logs.length;
+                const images = CannadiaryData.getPlantImages(plant.id);
+                const latestImage = images.length > 0 ? images[0] : null;
+
+                const row = document.createElement('tr');
+                row.className = 'plant-card hover:bg-green-50';
+                row.dataset.plantId = plant.id;
+
+                row.innerHTML = `
+                    <td class="p-2 font-bold">${idx + 1}</td>
+                    <td class="p-2 font-bold">${plant.id}</td>
+                    <td class="p-2 font-medium">${plant.label}</td>
+                    <td class="p-2 text-center">
+                        ${latestImage
+                            ? `<img src="${latestImage.data}" class="plant-thumbnail mx-auto" onclick="openImageGallery(${plant.id}, '${plant.label}')" title="View all images">`
+                            : `<div class="plant-image-placeholder mx-auto" onclick="openPlantImageUpload(${plant.id}, '${plant.label}')" title="Add first image">
+                                <i class="fas fa-camera text-sm"></i>
+                               </div>`
+                        }
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.leafStatus)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'leafStatus')">${plant.leafStatus}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.internodes)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'internodes')">${plant.internodes}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.spacing)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'spacing')">${plant.spacing}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.height)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'height')">${plant.height}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.width)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'width')">${plant.width}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.roots)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'roots')">${plant.roots}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.stemRigidity)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'stemRigidity')">${plant.stemRigidity}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.sideShoot)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'sideShoot')">${plant.sideShoot}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.symmetry)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'symmetry')">${plant.symmetry}</div>
+                    </td>
+                    <td class="p-2 text-center font-bold">
+                        <div class="trait-score inline-block px-2 py-1 rounded text-xs total-score" style="background-color: ${getScoreColor(plant.total)}">${plant.total.toFixed(3)}</div>
+                    </td>
+                    <td class="p-2 text-center">
+                        <div class="flex space-x-1 justify-center">
+                            <button onclick="openPlantLogModal(${plant.id}, '${plant.label}')" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs hover:bg-green-200 transition-all relative">
+                                <i class="fas fa-plus"></i> Log
+                                ${logCount > 0 ? `<span class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">${logCount}</span>` : ''}
+                            </button>
+                            <button onclick="openPlantImageUpload(${plant.id}, '${plant.label}')" class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-all" title="Add image">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                            <button onclick="deletePlant(${plant.id})" class="text-red-500 hover:text-red-700" title="Delete plant">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // Get color based on score (heatmap style)
+        function getScoreColor(score) {
+            if (score >= 0.85) return '#d4edda'; // Green
+            if (score >= 0.75) return '#fff3cd'; // Yellow
+            if (score >= 0.65) return '#f8d7da'; // Light red
+            return '#f5c6cb'; // Red
+        }
+
+        // Initialize milestones
+        function initMilestones() {
+            const milestones = CannadiaryData.getMilestones();
+            const container = document.getElementById('milestoneList');
+            container.innerHTML = '';
+
+            if (milestones.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-4">No milestones added yet. Click "Add Milestone" to get started!</div>';
+                return;
+            }
+
+            // Sort milestones by date
+            milestones.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            milestones.forEach(milestone => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-50 p-3 rounded-lg border-l-4 border-green-500';
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-${milestone.icon || 'flag'} text-green-600 mr-3"></i>
+                            <div>
+                                <div class="font-bold">${milestone.name}</div>
+                                <div class="text-sm text-gray-600">${new Date(milestone.date).toLocaleDateString()}</div>
+                            </div>
+                        </div>
+                        <button onclick="removeMilestone(${milestone.id})" class="text-red-400 hover:text-red-600" title="Delete milestone">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    ${milestone.notes ? `<div class="mt-2 text-sm text-gray-700">${milestone.notes}</div>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Initialize care events
+        function initCareEvents() {
+            const careEvents = CannadiaryData.getCareEvents();
+            const container = document.getElementById('careList');
+            container.innerHTML = '';
+
+            if (careEvents.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-4">No care events logged yet. Click "Add Care Event" to start tracking!</div>';
+                return;
+            }
+
+            // Sort by date (most recent first)
+            careEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            careEvents.forEach(event => {
+                const div = document.createElement('div');
+                div.className = 'bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500';
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-bold">${event.type}</div>
+                            <div class="text-sm text-gray-600">${new Date(event.date).toLocaleDateString()}</div>
+                            <div class="text-xs text-gray-500">Plants: ${event.plants}</div>
+                        </div>
+                        <button onclick="removeCareEvent(${event.id})" class="text-red-400 hover:text-red-600" title="Delete event">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    ${event.amount ? `<div class="mt-1 text-sm font-medium">Amount: ${event.amount}</div>` : ''}
+                    <div class="mt-2 text-sm text-gray-700">${event.notes}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Initialize performance chart
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            // Get top 10 performers
+            const topPlants = [...plantsData].sort((a, b) => b.total - a.total).slice(0, 10);
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+            
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: topPlants.map(p => `${p.label} #${p.id}`),
+                    datasets: [{
+                        label: 'Overall Score',
+                        data: topPlants.map(p => p.total),
+                        backgroundColor: 'rgba(45, 80, 22, 0.6)',
+                        borderColor: 'rgba(45, 80, 22, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Top 10 Plant Performers'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updatePerformanceChart() {
+            if (performanceChart) {
+                const topPlants = [...plantsData].sort((a, b) => b.total - a.total).slice(0, 10);
+                performanceChart.data.labels = topPlants.map(p => `${p.label} #${p.id}`);
+                performanceChart.data.datasets[0].data = topPlants.map(p => p.total);
+                performanceChart.update();
+            }
+        }
+
+        // Journal canvas functionality
+        function setupJournalCanvas() {
+            const canvas = document.getElementById('journalCanvas');
+            loadCanvasNotes();
+            loadCanvasImages();
+            
+            canvas.addEventListener('click', function(e) {
+                if (e.target === canvas) {
+                    createCanvasNote(e.offsetX, e.offsetY);
+                }
+            });
+        }
+
+        function createCanvasNote(x, y, text = '') {
+            const canvas = document.getElementById('journalCanvas');
+            const note = document.createElement('div');
+            note.className = 'draggable-note';
+            note.style.left = x + 'px';
+            note.style.top = y + 'px';
+            
+            if (text) {
+                note.innerHTML = `
+                    <div class="text-xs text-gray-500 mb-1">${new Date().toLocaleString()}</div>
+                    <div class="editable-content" ondblclick="editNote(this)">${text}</div>
+                `;
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.className = 'w-full h-20 p-2 border-none bg-transparent resize-none outline-none';
+                textArea.placeholder = 'Enter your note...';
+                textArea.focus();
+                
+                textArea.addEventListener('blur', function() {
+                    if (this.value.trim()) {
+                        const noteData = {
+                            x: parseInt(note.style.left),
+                            y: parseInt(note.style.top),
+                            text: this.value.trim(),
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        const savedNote = CannadiaryData.addCanvasNote(noteData);
+                        note.dataset.noteId = savedNote.id;
+                        note.innerHTML = `
+                            <div class="text-xs text-gray-500 mb-1">${new Date().toLocaleString()}</div>
+                            <div class="editable-content" ondblclick="editNote(this)">${this.value}</div>
+                            <button onclick="deleteCanvasNote(${savedNote.id})" class="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs">×</button>
+                        `;
+                        showToast('Note saved successfully!');
+                    } else {
+                        note.remove();
+                    }
+                });
+                
+                note.appendChild(textArea);
+            }
+            
+            makeDraggable(note);
+            canvas.appendChild(note);
+            hideCanvasPlaceholder();
+        }
+
+        function loadCanvasNotes() {
+            const notes = CannadiaryData.getCanvasNotes();
+            notes.forEach(noteData => {
+                createCanvasNote(noteData.x, noteData.y, noteData.text);
+                const noteElements = document.querySelectorAll('.draggable-note');
+                const lastNote = noteElements[noteElements.length - 1];
+                if (lastNote) {
+                    lastNote.dataset.noteId = noteData.id;
+                    lastNote.innerHTML += `<button onclick="deleteCanvasNote(${noteData.id})" class="absolute top-1 right-1 text-red-400 hover:text-red-600 text-xs">×</button>`;
+                }
+            });
+        }
+
+        function openCanvasImageUpload(){
+            document.getElementById('canvasImageInput').click();
+        }
+
+        async function handleCanvasImageUpload(e){
+            const file=e.target.files[0];if(!file)return;
+            if(file.size>2*1024*1024||!file.type.startsWith('image/')){showErrorToast('Select an image ≤2 MB');return;}
+            const {data}=await compressImage(file);
+            const canvas=document.getElementById('journalCanvas');
+            const x=(canvas.offsetWidth-160)/2, y=(canvas.offsetHeight-160)/2;
+            createCanvasImage(x,y,data,true);
+            e.target.value='';
+        }
+
+        function createCanvasImage(x,y,src,save=false){
+            const canvas=document.getElementById('journalCanvas');
+            const wrap=document.createElement('div');
+            wrap.className='draggable-image';
+            wrap.style.left=x+'px';wrap.style.top=y+'px';
+            wrap.innerHTML=`<img src="${src}">
+                  <button onclick="deleteCanvasImage(this.parentElement.dataset.imgId)"
+                          class="absolute top-1 right-1 text-red-500 hover:text-red-700 text-lg leading-none">×</button>`;
+            makeDraggable(wrap);
+            canvas.appendChild(wrap);
+            hideCanvasPlaceholder();
+            if(save){
+                const saved=CannadiaryData.addCanvasImage({x:parseInt(x),y:parseInt(y),src,timestamp:new Date().toISOString()});
+                wrap.dataset.imgId=saved.id;
+            }
+        }
+
+        function loadCanvasImages(){
+            CannadiaryData.getCanvasImages().forEach(img=>{
+                createCanvasImage(img.x,img.y,img.src);
+                const latest=document.querySelectorAll('.draggable-image:last-child')[0];
+                latest.dataset.imgId=img.id;
+            });
+        }
+
+        function deleteCanvasImage(id){
+            if(!confirm('Delete this photo?'))return;
+            CannadiaryData.removeCanvasImage(id);
+            document.querySelector(`[data-img-id="${id}"]`).remove();
+            if(!document.querySelector('#journalCanvas .draggable-note, #journalCanvas .draggable-image')){
+                showCanvasPlaceholder();
+            }
+        }
+
+        function deleteCanvasNote(id) {
+            if (confirm('Delete this note?')) {
+                CannadiaryData.removeCanvasNote(id);
+                document.querySelector(`[data-note-id="${id}"]`).remove();
+                showToast('Note deleted!');
+                
+                const canvas = document.getElementById('journalCanvas');
+                if (!canvas.querySelector('.draggable-note, .draggable-image')) {
+                    showCanvasPlaceholder();
+                }
+            }
+        }
+
+        function hideCanvasPlaceholder() {
+            document.getElementById('canvasPlaceholder').style.display = 'none';
+        }
+
+        function showCanvasPlaceholder() {
+            document.getElementById('canvasPlaceholder').style.display = 'block';
+        }
+
+        // Add sticky note
+        function addStickyNote() {
+            const canvas = document.getElementById('journalCanvas');
+            const x = Math.random() * (canvas.offsetWidth - 200);
+            const y = Math.random() * (canvas.offsetHeight - 150);
+            createCanvasNote(x, y);
+        }
+
+        // Make element draggable
+        function makeDraggable(element) {
+            let isDragging = false;
+            let startX, startY, startLeft, startTop;
+
+            element.addEventListener('mousedown', function(e) {
+                if (e.target.tagName === 'TEXTAREA' || e.target.classList.contains('editable-content')) return;
+                
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startLeft = parseInt(window.getComputedStyle(element).left, 10);
+                startTop = parseInt(window.getComputedStyle(element).top, 10);
+                element.style.zIndex = 1000;
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (isDragging) {
+                    element.style.left = (startLeft + e.clientX - startX) + 'px';
+                    element.style.top = (startTop + e.clientY - startY) + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', function() {
+                if (isDragging && element.dataset.noteId) {
+                    const notes = CannadiaryData.getCanvasNotes();
+                    const noteIndex = notes.findIndex(n => n.id == element.dataset.noteId);
+                    if (noteIndex !== -1) {
+                        notes[noteIndex].x = parseInt(element.style.left);
+                        notes[noteIndex].y = parseInt(element.style.top);
+                        localStorage.setItem('canvas_notes', JSON.stringify(notes));
+                    }
+                }
+                if (isDragging && element.dataset.imgId) {
+                    const imgs = CannadiaryData.getCanvasImages();
+                    const idx = imgs.findIndex(i => i.id == element.dataset.imgId);
+                    if (idx !== -1) {
+                        imgs[idx].x = parseInt(element.style.left);
+                        imgs[idx].y = parseInt(element.style.top);
+                        localStorage.setItem('canvas_images', JSON.stringify(imgs));
+                    }
+                }
+                isDragging = false;
+                element.style.zIndex = 'auto';
+            });
+        }
+
+        // Clear canvas
+        function clearCanvas() {
+            if (confirm('Are you sure you want to clear all notes? This cannot be undone.')) {
+                CannadiaryData.clearCanvasNotes();
+                localStorage.removeItem('canvas_images');
+                const canvas = document.getElementById('journalCanvas');
+                const items = canvas.querySelectorAll('.draggable-note, .draggable-image');
+                items.forEach(el => el.remove());
+                showCanvasPlaceholder();
+                showToast('Canvas cleared!');
+            }
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openPlantLogModal(plantId, label) {
+            document.getElementById('logPlantId').value = plantId;
+            document.getElementById('logPlantName').value = `Plant #${plantId} - ${label}`;
+            document.getElementById('logDateTime').value = new Date().toISOString().slice(0, 16);
+            document.getElementById('logNotes').value = '';
+            document.getElementById('logImagePreview').classList.add('hidden');
+            openModal('plantLogModal');
+        }
+
+        function openMilestoneModal() {
+            document.getElementById('milestoneType').value = '';
+            document.getElementById('customMilestoneName').value = '';
+            document.getElementById('milestoneDate').value = '';
+            document.getElementById('milestoneNotes').value = '';
+            document.getElementById('customMilestoneDiv').style.display = 'none';
+            openModal('milestoneModal');
+        }
+
+        function openCareModal() {
+            document.getElementById('careType').value = '';
+            document.getElementById('carePlants').value = '';
+            document.getElementById('careDateTime').value = new Date().toISOString().slice(0, 16);
+            document.getElementById('careAmount').value = '';
+            document.getElementById('careNotes').value = '';
+            openModal('careModal');
+        }
+
+        // Form submissions
+        document.getElementById('plantLogForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const plantId = document.getElementById('logPlantId').value;
+            const dateTime = document.getElementById('logDateTime').value;
+            const notes = document.getElementById('logNotes').value;
+            const imageElement = document.getElementById('logPreviewImg');
+            
+            const logEntry = {
+                timestamp: new Date(dateTime).toISOString(),
+                notes: notes,
+                dateAdded: new Date().toISOString()
+            };
+            
+            // Add image if uploaded
+            if (!document.getElementById('logImagePreview').classList.contains('hidden')) {
+                logEntry.image = imageElement.src;
+            }
+            
+            CannadiaryData.addPlantLog(plantId, logEntry);
+            closeModal('plantLogModal');
+            initPlantTable(); // Refresh to show log count
+            showToast('Plant log saved successfully!');
+        });
+
+        document.getElementById('milestoneForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const type = document.getElementById('milestoneType').value;
+            const customName = document.getElementById('customMilestoneName').value;
+            const date = document.getElementById('milestoneDate').value;
+            const notes = document.getElementById('milestoneNotes').value;
+            
+            const milestone = {
+                name: type === 'Custom' ? customName : type,
+                date: date,
+                notes: notes,
+                icon: getMilestoneIcon(type)
+            };
+            
+            CannadiaryData.addMilestone(milestone);
+            closeModal('milestoneModal');
+            initMilestones();
+            initTimeline(); // Refresh timeline markers
+            showToast('Milestone added successfully!');
+        });
+
+        document.getElementById('careForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const type = document.getElementById('careType').value;
+            const plants = document.getElementById('carePlants').value;
+            const dateTime = document.getElementById('careDateTime').value;
+            const amount = document.getElementById('careAmount').value;
+            const notes = document.getElementById('careNotes').value;
+            
+            const careEvent = {
+                type: type,
+                plants: plants,
+                date: new Date(dateTime).toISOString(),
+                amount: amount,
+                notes: notes
+            };
+            
+            CannadiaryData.addCareEvent(careEvent);
+            closeModal('careModal');
+            initCareEvents();
+            initTimeline(); // Refresh timeline markers
+            showToast('Care event added successfully!');
+        });
+
+        function getMilestoneIcon(type) {
+            const icons = {
+                'Transplanting': 'seedling',
+                'Topping': 'cut',
+                'Fimming/LST': 'arrows-alt',
+                'Flower Initiation': 'sun',
+                'Stretch Period': 'expand-arrows-alt',
+                'Harvest Window': 'calendar-check',
+                'Drying': 'wind',
+                'Curing': 'archive'
+            };
+            return icons[type] || 'flag';
+        }
+
+        function removeMilestone(id) {
+            if (confirm('Remove this milestone?')) {
+                CannadiaryData.removeMilestone(id);
+                initMilestones();
+                initTimeline();
+                showToast('Milestone removed!');
+            }
+        }
+
+        function removeCareEvent(id) {
+            if (confirm('Remove this care event?')) {
+                CannadiaryData.removeCareEvent(id);
+                initCareEvents();
+                initTimeline();
+                showToast('Care event removed!');
+            }
+        }
+
+        // Show custom milestone name field
+        document.getElementById('milestoneType').addEventListener('change', function() {
+            const customDiv = document.getElementById('customMilestoneDiv');
+            customDiv.style.display = this.value === 'Custom' ? 'block' : 'none';
+        });
+
+        // Toast notification
+        function showToast(message) {
+            const toast = document.getElementById('successToast');
+            document.getElementById('toastMessage').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function showErrorToast(message) {
+            const toast = document.getElementById('errorToast');
+            document.getElementById('errorMessage').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Helper to parse score values that may be percentages
+        function parseScore(val) {
+            if (typeof val === 'string') {
+                val = val.trim();
+                if (val.endsWith('%')) {
+                    val = val.slice(0, -1);
+                }
+            }
+            const num = parseFloat(val);
+            if (isNaN(num)) return NaN;
+            return num > 1 ? num / 100 : num;
+        }
+
+        // Import plant scores from CSV or Excel file
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                if (rows.length === 0) {
+                    showErrorToast('File is empty');
+                    return;
+                }
+
+                // Remove header row if first cell is not a number
+                if (isNaN(parseInt(rows[0][0]))) {
+                    rows.shift();
+                }
+
+                const newData = [];
+                for (const r of rows) {
+                    if (r.length < 11) continue;
+                    const plant = {
+                        id: parseInt(r[0]) || (newData.length + 1),
+                        label: r[1],
+                        leafStatus: parseScore(r[2]),
+                        internodes: parseScore(r[3]),
+                        spacing: parseScore(r[4]),
+                        height: parseScore(r[5]),
+                        width: parseScore(r[6]),
+                        roots: parseScore(r[7]),
+                        stemRigidity: parseScore(r[8]),
+                        sideShoot: parseScore(r[9]),
+                        symmetry: parseScore(r[10])
+                    };
+
+                    // Validate trait values
+                    const traits = ['leafStatus','internodes','spacing','height','width','roots','stemRigidity','sideShoot','symmetry'];
+                    for (const t of traits) {
+                        const v = plant[t];
+                        if (isNaN(v) || v < 0 || v > 1) {
+                            showErrorToast('Invalid values in file');
+                            return;
+                        }
+                    }
+
+                    plant.total = (plant.leafStatus + plant.internodes + plant.spacing + plant.height + plant.width + plant.roots + plant.stemRigidity + plant.sideShoot + plant.symmetry) / 9;
+                    newData.push(plant);
+                }
+
+                if (newData.length === 0) {
+                    showErrorToast('No valid rows found');
+                    return;
+                }
+
+                plantsData = newData;
+                savePlantData();
+                initPlantTable();
+                updateKPIs();
+                updatePerformanceChart();
+                showToast('Import successful!');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Utility functions
+        function selectDate(dateString) {
+            // Could open a date-specific view or add quick milestone/care event
+            console.log('Selected date:', dateString);
+        }
+
+        function updateKPIs() {
+            // Calculate Vigor Index (height + internodes + side shoots)
+            const vigorScores = plantsData.map(p => (p.height + p.internodes + p.sideShoot) / 3);
+            const avgVigor = vigorScores.reduce((a, b) => a + b, 0) / vigorScores.length;
+            document.getElementById('vigorIndex').textContent = (avgVigor * 10).toFixed(1);
+
+            // Calculate Structural Integrity (stem + symmetry + roots)
+            const structuralScores = plantsData.map(p => (p.stemRigidity + p.symmetry + p.roots) / 3);
+            const avgStructural = structuralScores.reduce((a, b) => a + b, 0) / structuralScores.length;
+            document.getElementById('structuralIndex').textContent = (avgStructural * 10).toFixed(1);
+
+            // Find top performer
+            const topPlant = plantsData.reduce((max, plant) => plant.total > max.total ? plant : max);
+            document.getElementById('topPerformer').innerHTML = `${topPlant.label} #${topPlant.id}<br><div class="text-sm text-gray-600">Score: ${topPlant.total.toFixed(3)}</div>`;
+
+            // Calculate days active
+            const startDate = new Date('2025-05-10');
+            const today = new Date();
+            const daysActive = Math.max(0, Math.ceil((today - startDate) / (1000 * 60 * 60 * 24)));
+            document.getElementById('daysActive').textContent = daysActive;
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load saved data first
+            loadSavedData();
+            
+            initTimeline();
+            initPlantTable();
+            initMilestones();
+            initCareEvents();
+            initPerformanceChart();
+            setupJournalCanvas();
+            setupDragAndDrop();
+            
+            // Add filter functionality
+            document.getElementById('plantFilter').addEventListener('input', function(e) {
+                const filter = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#plantTableBody tr');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(filter) ? '' : 'none';
+                });
+            });
+
+            // Add sort functionality
+            document.getElementById('sortBy').addEventListener('change', function(e) {
+                const sortBy = e.target.value;
+                let sortedData = [...plantsData];
+                
+                switch(sortBy) {
+                    case 'total':
+                        sortedData.sort((a, b) => b.total - a.total);
+                        break;
+                    case 'label':
+                        sortedData.sort((a, b) => a.label.localeCompare(b.label));
+                        break;
+                    default:
+                        sortedData.sort((a, b) => a.id - b.id);
+                }
+                
+                // Re-render table with sorted data
+                const tbody = document.getElementById('plantTableBody');
+                tbody.innerHTML = '';
+                sortedData.forEach((plant, idx) => {
+                    const logs = CannadiaryData.getPlantLogs(plant.id);
+                    const logCount = logs.length;
+                    const images = CannadiaryData.getPlantImages(plant.id);
+                    const latestImage = images.length > 0 ? images[0] : null;
+                    
+                    const row = document.createElement('tr');
+                    row.className = 'plant-card hover:bg-green-50';
+                    row.dataset.plantId = plant.id;
+                    row.innerHTML = `
+                        <td class="p-2 font-bold">${idx + 1}</td>
+                        <td class="p-2 font-bold">${plant.id}</td>
+                        <td class="p-2 font-medium">${plant.label}</td>
+                        <td class="p-2 text-center">
+                            ${latestImage 
+                                ? `<img src="${latestImage.data}" class="plant-thumbnail mx-auto" onclick="openImageGallery(${plant.id}, '${plant.label}')" title="View all images">`
+                                : `<div class="plant-image-placeholder mx-auto" onclick="openPlantImageUpload(${plant.id}, '${plant.label}')" title="Add first image">
+                                    <i class="fas fa-camera text-sm"></i>
+                                   </div>`
+                            }
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.leafStatus)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'leafStatus')">${plant.leafStatus}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.internodes)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'internodes')">${plant.internodes}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.spacing)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'spacing')">${plant.spacing}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.height)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'height')">${plant.height}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.width)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'width')">${plant.width}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.roots)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'roots')">${plant.roots}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.stemRigidity)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'stemRigidity')">${plant.stemRigidity}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.sideShoot)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'sideShoot')">${plant.sideShoot}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs ${isEditingLocked ? 'locked' : ''}" style="background-color: ${getScoreColor(plant.symmetry)}" data-editable="true" onclick="makeTraitCellEditable(this, ${plant.id}, 'symmetry')">${plant.symmetry}</div>
+                        </td>
+                        <td class="p-2 text-center font-bold">
+                            <div class="trait-score inline-block px-2 py-1 rounded text-xs total-score" style="background-color: ${getScoreColor(plant.total)}">${plant.total.toFixed(3)}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <div class="flex space-x-1 justify-center">
+                                <button onclick="openPlantLogModal(${plant.id}, '${plant.label}')" class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs hover:bg-green-200 transition-all relative">
+                                    <i class="fas fa-plus"></i> Log
+                                    ${logCount > 0 ? `<span class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">${logCount}</span>` : ''}
+                                </button>
+                                <button onclick="openPlantImageUpload(${plant.id}, '${plant.label}')" class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs hover:bg-blue-200 transition-all" title="Add image">
+                                <button onclick="deletePlant(${plant.id})" class="text-red-500 hover:text-red-700" title="Delete plant">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                    <i class="fas fa-camera"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                document.getElementById('plantCount').textContent = plantsData.length;
+            });
+
+            // Calculate and update KPIs
+            updateKPIs();
+
+            // Close modal when clicking outside
+            window.addEventListener('click', function(e) {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# 🌿 Cannadiary  
+*Grow-diary in a single HTML file — 35 plants, dashboards, photos, offline-first.*
+
+![screenshot placeholder](docs/screenshot.png)
+
+## ✨ Features
+- **Plant table** with editable trait scores & live thumbnails  
+- **Bulk & single photo uploads** (per-plant, client-side compressed)  
+- **Interactive timeline** (seed → cure, zoomable)  
+- **Freeform journal canvas** — drag-n-drop sticky notes & images  
+- **Milestones & care events** scheduler (topping, LST, watering…)  
+- **KPI dashboard** (Vigor Index, Structural Integrity, Top performer)  
+- **All data stored in `localStorage`** → works fully **offline**  
+- Pure **HTML + Tailwind + Chart.js** — zero build, zero backend
+
+## 🚀 Quick start
+```bash
+git clone https://github.com/deefunxion/cannadiary.git
+cd cannadiary
+# just open index.html in your browser – or –
+npx serve .
+Or deploy to GitHub Pages:
+Settings → Pages → Source: main / (root) and you’re live.
+
+🖼 Bulk photo uploader
+Drop a folder of 1c.jpg … 35c.jpg (or 1f.jpg … 35f.jpg) and each file
+lands in the matching plant’s gallery — instant session logging.
+
+🛠 Contributing
+Fork → create feature branch (feat/bulk-uploader)
+
+Commit with Conventional Commits
+
+Open a PR & describe the grower-side benefit
+
+Respect existing code-style (vanilla JS, Tailwind utility classes)
+
+Roadmap
+ Stats / heat-map dashboard
+
+ PWA + GitHub Gist backup
+
+ Sensor bridge (ESP32 → WebSerial)
